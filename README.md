@@ -1,5 +1,7 @@
 # 按文件大小切分矢量数据
 
+在线应用：[vector-size-splitter-roxy.streamlit.app](https://vector-size-splitter-roxy.streamlit.app/)
+
 可部署在 Streamlit Community Cloud 或 Docker 的单文件上传应用。入口为 `app.py`，支持 GeoJSON、Shapefile ZIP、GeoPackage，以及 Fiona/GDAL 环境可读的 File Geodatabase ZIP。每次选择一个数据集中的一个图层。
 
 ## 快速运行
@@ -26,6 +28,14 @@ streamlit run app.py
 可上传附带的 `examples/example.geojson`，设置 `0.3 KB` 快速观察多分片输出。
 
 默认不新增字段、不转换坐标系。启用辅助字段后，`orig_fid` 保存驱动提供的原 feature ID（没有则采用从零开始的序号），`part_id` 是从 1 开始的**分片编号，不是每个要素的唯一 ID**。与已有字段冲突时明确报错。
+
+GeoJSON 输出新增“几何类型”选项（文件扩展名仍为 `.geojson`）：
+
+- **保持原类型**（默认）：不强制转换，兼容点、线、面等原有数据。
+- **Polygon**：Polygon 保持不变；仅包含一个面的 MultiPolygon 转为 Polygon；包含多个面的 MultiPolygon 明确报错，**不拆分、不删除部件，也不输出部分结果**。
+- **MultiPolygon**：Polygon 包装为 MultiPolygon，已有 MultiPolygon 保持不变。不同要素不会合并。
+
+两种转换均保持原属性、ID、坐标精度、内洞和 Z 坐标，不改变要素数。指定面类型时，点、线及 GeometryCollection 明确报错；无效几何先按现有规则修复，再检查目标类型。转换后的实际字节数仍受大小阈值约束。
 
 ## 项目文件
 
@@ -125,7 +135,7 @@ python tests/benchmark_100mb.py
 
 基准脚本自动生成至少 100MiB 的 GeoJSON，设置 10MiB 阈值，检查每个文件实际大小、总数，以及全部要素按顺序序列化的 SHA256 一致，最后自动删除临时数据。测试包含三种输出、原生输入、中文/大整数/高精度属性、空/无效几何、不同几何类型、辅助字段、CRS、ZIP 安全检查和 Streamlit 启动。
 
-尚需在用户自己的 Community Cloud/Docker 环境完成实际部署验证；本地测试成功不等于已发布云端应用。
+已于 2026-10-16 部署到 Streamlit Community Cloud（Python 3.12），完成示例数据上传、切分、下载及属性回读校验。Docker 镜像构建与云端大文件压力测试尚未执行。
 
 ## 直接调用核心逻辑
 

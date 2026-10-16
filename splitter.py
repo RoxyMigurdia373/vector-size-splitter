@@ -15,11 +15,36 @@ from io_utils import (Source, VectorError, check_schema, directory_size, dumps,
                       json_header, loads, safe_name, write_native)
 
 
+def convert_face_geometry(feature, geometry_type):
+    """只调整面坐标的嵌套层级，不重算坐标、合并面或修改 properties。"""
+    if geometry_type == "keep":
+        return feature
+    geometry = feature["geometry"]
+    current = geometry["type"]
+    if current not in {"Polygon", "MultiPolygon"}:
+        raise VectorError(f"选择 {geometry_type} 输出，但遇到 {current} 几何。请使用“保持原类型”或上传纯面数据。")
+    if geometry_type == "MultiPolygon":
+        if current == "MultiPolygon":
+            return feature
+        return {**feature, "geometry": {**geometry, "type": "MultiPolygon",
+                                         "coordinates": [geometry["coordinates"]]}}
+    if current == "Polygon":
+        return feature
+    polygons = geometry["coordinates"]
+    if len(polygons) != 1:
+        raise VectorError("遇到包含多个面的 MultiPolygon，不能在不拆分的情况下转换为 Polygon。请输出 MultiPolygon 或选择“保持原类型”。")
+    return {**feature, "geometry": {**geometry, "type": "Polygon", "coordinates": polygons[0]}}
+
+
 def split_vector(input_path, output_dir, max_bytes, output_format="geojson",
                  *, layer=None, base_name=None, add_fields=False, wgs84=False,
-                 progress=None):
+                 progress=None, geometry_type="keep"):
     if output_format not in {"geojson", "shp", "gpkg"}:
         raise VectorError("输出格式必须为 geojson、shp 或 gpkg。")
+    if geometry_type not in {"keep", "Polygon", "MultiPolygon"}:
+        raise VectorError("几何类型必须为 keep、Polygon 或 MultiPolygon。")
+    if geometry_type != "keep" and output_format != "geojson":
+        raise VectorError("指定 Polygon/MultiPolygon 仅适用于 GeoJSON 输出。")
     if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes <= 0:
         raise VectorError("大小阈值必须是正整数字节数。")
     output_dir = Path(output_dir)
@@ -47,6 +72,7 @@ def split_vector(input_path, output_dir, max_bytes, output_format="geojson",
     stem = safe_name(base_name or Path(input_path).stem)
     stats = {"input_count": 0, "output_count": 0, "skipped_count": 0,
              "repaired_count": 0, "max_bytes": max_bytes, "format": output_format,
+             "geometry_type": geometry_type,
              "log": [], "log_truncated": 0, "parts": []}
 
     def log(text):
@@ -99,8 +125,12 @@ def split_vector(input_path, output_dir, max_bytes, output_format="geojson",
             if add_fields:
                 feature["properties"] = dict(properties or {})
                 feature["properties"]["orig_fid"] = str(feature.get("id", index - 1))
+            try:
+                converted = convert_face_geometry(feature, geometry_type)
+            except VectorError as exc:
+                raise VectorError(f"第 {index} 个要素：{exc}") from exc
             count += 1
-            connection.execute("INSERT INTO features VALUES (?, ?)", (count, dumps(feature)))
+            connection.execute("INSERT INTO features VALUES (?, ?)", (count, dumps(converted)))
             if index % 2000 == 0:
                 connection.commit()
                 if progress:

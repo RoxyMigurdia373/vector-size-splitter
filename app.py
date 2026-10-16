@@ -19,6 +19,16 @@ with st.sidebar:
     maximum = st.number_input("最大文件大小", min_value=0.001, value=10.0, format="%.3f")
     unit = st.selectbox("单位", ["KB", "MB", "GB"], index=1)
     output_format = st.selectbox("输出格式", ["geojson", "shp", "gpkg"])
+    geometry_type = "keep"
+    if output_format == "geojson":
+        geometry_type = st.selectbox("GeoJSON 几何类型", ["keep", "Polygon", "MultiPolygon"],
+                                     format_func=lambda value: "保持原类型" if value == "keep" else value)
+        if geometry_type == "Polygon":
+            st.caption("只转换单部件面；遇到包含多个面的 MultiPolygon 会报错，不拆分要素。")
+        elif geometry_type == "MultiPolygon":
+            st.caption("将 Polygon 转为 MultiPolygon，已有 MultiPolygon 保持不变；不改变要素数和属性。")
+        if geometry_type != "keep":
+            st.caption("指定面类型仅适用于纯面数据；点、线或 GeometryCollection 会提示错误。")
     add_fields = st.checkbox("新增 orig_fid、part_id 辅助字段", value=False)
     wgs84 = st.checkbox("转换为 WGS84（EPSG:4326）", value=False)
     st.caption("Shapefile 阈值是全部组成文件的未压缩总大小；不是 zip 的大小。")
@@ -49,7 +59,7 @@ else:
                 layer = st.selectbox("图层（每次切分一个图层）", layers)
             signature = (getattr(upload, "file_id", upload.name), upload.size,
                          str(dataset.relative_to(root)), layer, maximum, unit,
-                         output_format, add_fields, wgs84)
+                         output_format, add_fields, wgs84, geometry_type)
             saved = st.session_state.get("split_result")
             if saved and saved["signature"] != signature:
                 st.session_state.pop("split_result", None)
@@ -59,7 +69,8 @@ else:
                 with st.spinner("正在读取、切分并验证实际文件大小…"):
                     result = split_vector(dataset, root / "output", size_bytes(maximum, unit),
                                           output_format, layer=layer, base_name=safe_name(upload.name),
-                                          add_fields=add_fields, wgs84=wgs84, progress=status.info)
+                                          add_fields=add_fields, wgs84=wgs84, progress=status.info,
+                                          geometry_type=geometry_type)
                     manifest = dict(result)
                     manifest["parts"] = [{k: v for k, v in part.items() if k != "path"}
                                          for part in result["parts"]]
