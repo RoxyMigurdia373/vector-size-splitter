@@ -29,6 +29,14 @@ streamlit run app.py
 
 默认不新增字段、不转换坐标系。启用辅助字段后，`orig_fid` 保存驱动提供的原 feature ID（没有则采用从零开始的序号），`part_id` 是从 1 开始的**分片编号，不是每个要素的唯一 ID**。与已有字段冲突时明确报错。
 
+GeoJSON 输出新增“几何类型”选项（文件扩展名仍为 `.geojson`）：
+
+- **保持原类型**（默认）：不强制转换，兼容点、线、面等原有数据。
+- **Polygon**：Polygon 保持不变；仅包含一个面的 MultiPolygon 转为 Polygon；包含多个面的 MultiPolygon 明确报错，**不拆分、不删除部件，也不输出部分结果**。
+- **MultiPolygon**：Polygon 包装为 MultiPolygon，已有 MultiPolygon 保持不变。不同要素不会合并。
+
+两种转换均保持原属性、ID、坐标精度、内洞和 Z 坐标，不改变要素数。指定面类型时，点、线及 GeometryCollection 明确报错；无效几何先按现有规则修复，再检查目标类型。转换后的实际字节数仍受大小阈值约束。
+
 ## 项目文件
 
 ```text
