@@ -1,5 +1,7 @@
 # 按文件大小切分矢量数据
 
+在线应用：[vector-size-splitter-roxy.streamlit.app](https://vector-size-splitter-roxy.streamlit.app/)
+
 可部署在 Streamlit Community Cloud 或 Docker 的单文件上传应用。入口为 `app.py`，支持 GeoJSON、Shapefile ZIP、GeoPackage，以及 Fiona/GDAL 环境可读的 File Geodatabase ZIP。每次选择一个数据集中的一个图层。
 
 ## 快速运行
@@ -125,7 +127,7 @@ python tests/benchmark_100mb.py
 
 基准脚本自动生成至少 100MiB 的 GeoJSON，设置 10MiB 阈值，检查每个文件实际大小、总数，以及全部要素按顺序序列化的 SHA256 一致，最后自动删除临时数据。测试包含三种输出、原生输入、中文/大整数/高精度属性、空/无效几何、不同几何类型、辅助字段、CRS、ZIP 安全检查和 Streamlit 启动。
 
-尚需在用户自己的 Community Cloud/Docker 环境完成实际部署验证；本地测试成功不等于已发布云端应用。
+已于 2026-10-16 部署到 Streamlit Community Cloud（Python 3.12），完成示例数据上传、切分、下载及属性回读校验。Docker 镜像构建与云端大文件压力测试尚未执行。
 
 ## 直接调用核心逻辑
 
