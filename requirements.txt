@@ -1,0 +1,11 @@
+streamlit==1.45.1
+geopandas==1.0.1
+pyogrio==0.10.0
+shapely==2.0.7
+fiona==1.10.1
+pandas==2.2.3
+numpy==1.26.4
+pyproj==3.7.1
+ijson==3.3.0
+simplejson==3.20.1
+pyarrow==19.0.1
