@@ -229,3 +229,101 @@ def test_native_precision_loss_is_rejected(tmp_path):
     path = source_file(tmp_path, [feature(properties={"value": Decimal("0.12345678901234567890123")})])
     with pytest.raises(VectorError, match="属性"):
         split_vector(path, tmp_path / "out", 200000, "gpkg")
+
+
+def face_features():
+    # 第一个面包含内洞与 Z 坐标；第二个面与它不相交。
+    polygon = [
+        [[0, 0, 7], [4, 0, 7], [4, 4, 7], [0, 4, 7], [0, 0, 7]],
+        [[1, 1, 7], [1, 2, 7], [2, 2, 7], [2, 1, 7], [1, 1, 7]],
+    ]
+    second = [[[6, 0, 7], [8, 0, 7], [8, 2, 7], [6, 2, 7], [6, 0, 7]]]
+    props = {"uid": 2**60, "nested": {"x": [True, None]}, "value": Decimal("0.123456789012345678901")}
+    return [feature(1, props, {"type": "Polygon", "coordinates": polygon}),
+            feature(2, props, {"type": "MultiPolygon", "coordinates": [polygon, second]})]
+
+
+def test_face_multipolygon_preserves_properties_coordinates_and_count(tmp_path):
+    original = face_features()
+    result = split_vector(source_file(tmp_path, original), tmp_path / "out", 1000, geometry_type="MultiPolygon")
+    records = read_parts(result)
+    assert result["output_count"] == result["input_count"] == 2
+    assert all(r["geometry"]["type"] == "MultiPolygon" for r in records)
+    assert records[0]["geometry"]["coordinates"] == [original[0]["geometry"]["coordinates"]]
+    assert same_value(records[1], original[1])
+    assert same_value(records[0]["properties"], original[0]["properties"])
+    assert all(p["size_bytes"] <= 1000 for p in result["parts"])
+
+
+def test_face_polygon_single_part_keeps_attributes_holes_and_bbox(tmp_path):
+    original = face_features()
+    original[1]["geometry"]["coordinates"] = original[1]["geometry"]["coordinates"][:1]
+    original[1]["bbox"] = [0, 0, 4, 4]
+    result = split_vector(source_file(tmp_path, original), tmp_path / "out", 600,
+                          geometry_type="Polygon")
+    records = read_parts(result)
+    assert result["input_count"] == result["output_count"] == 2
+    assert all(r["geometry"]["type"] == "Polygon" for r in records)
+    assert [r["geometry"]["coordinates"] for r in records] == [original[0]["geometry"]["coordinates"], *original[1]["geometry"]["coordinates"]]
+    assert all(same_value(r["properties"], original[0]["properties"]) for r in records)
+    assert records[1]["id"] == original[1]["id"]
+    assert records[1]["bbox"] == original[1]["bbox"]
+    assert all(p["size_bytes"] <= 600 for p in result["parts"])
+
+
+def test_face_polygon_strict_and_single_part_unwrap(tmp_path):
+    original = face_features()
+    path = source_file(tmp_path, original)
+    with pytest.raises(VectorError, match="多个面"):
+        split_vector(path, tmp_path / "strict", 2000, geometry_type="Polygon")
+    assert not list((tmp_path / "strict").glob("*.geojson"))
+    original[1]["geometry"]["coordinates"] = original[1]["geometry"]["coordinates"][:1]
+    result = split_vector(source_file(tmp_path, original), tmp_path / "single", 2000, geometry_type="Polygon")
+    assert result["output_count"] == 2
+    assert all(f["geometry"]["type"] == "Polygon" for f in read_parts(result))
+
+
+@pytest.mark.parametrize("target", ["Polygon", "MultiPolygon"])
+def test_face_non_polygon_is_error_not_silent_skip(tmp_path, target):
+    with pytest.raises(VectorError, match="Point"):
+        split_vector(source_file(tmp_path, [feature()]), tmp_path / "out", 1000, geometry_type=target)
+
+
+def test_face_repaired_polygon_converts_after_repair(tmp_path):
+    bowtie = feature(geometry={"type": "Polygon", "coordinates": [[[0, 0], [2, 2], [0, 2], [2, 0], [0, 0]]]})
+    result = split_vector(source_file(tmp_path, [bowtie]), tmp_path / "out", 1000,
+                          geometry_type="MultiPolygon", add_fields=True)
+    records = read_parts(result)
+    assert result["repaired_count"] == 1
+    assert result["output_count"] == 1
+    assert all(r["geometry"]["type"] == "MultiPolygon" for r in records)
+    assert all(r["properties"]["orig_fid"] == bowtie["id"] for r in records)
+    with pytest.raises(VectorError, match="多个面"):
+        split_vector(tmp_path / "source.geojson", tmp_path / "strict", 1000, geometry_type="Polygon")
+
+
+def test_face_default_keeps_geometry_types(tmp_path):
+    original = face_features()
+    result = split_vector(source_file(tmp_path, original), tmp_path / "out", 2000)
+    assert same_value(read_parts(result), original)
+
+
+def test_streamlit_geometry_choice_and_strict_error(monkeypatch):
+    import streamlit as st
+    from streamlit.testing.v1 import AppTest
+    upload = io.BytesIO(dumps({"type": "FeatureCollection", "features": face_features()}).encode("utf-8"))
+    upload.name = "faces.geojson"
+    upload.size = len(upload.getvalue())
+    upload.file_id = "face-upload"
+    monkeypatch.setattr(st, "file_uploader", lambda *a, **kw: upload)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py")).run()
+    select = next(s for s in app.selectbox if s.label == "GeoJSON 几何类型")
+    select.select("MultiPolygon").run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert app.session_state["split_result"]["manifest"]["geometry_type"] == "MultiPolygon"
+    next(s for s in app.selectbox if s.label == "GeoJSON 几何类型").select("Polygon").run()
+    assert "split_result" not in app.session_state
+    app.button[0].click().run()
+    assert app.error and "多个面" in app.error[0].value
+    assert "split_result" not in app.session_state
