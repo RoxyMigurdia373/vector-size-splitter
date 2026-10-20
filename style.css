@@ -1,0 +1,16 @@
+.stApp{background:#f2f5fa;color:#24364b;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif}
+.block-container{max-width:1400px;padding-top:2.8rem;padding-bottom:3rem}
+h1{font-size:1.85rem!important;letter-spacing:.02em;font-weight:600!important;color:#16324f}
+h2{font-size:1.25rem!important;color:#16324f}h3{font-size:1.05rem!important}
+[data-testid="stSidebar"]{background:#e9eef7;border-right:1px solid #d4dfed}
+[data-testid="stFileUploader"]{background:#fff;border:1px solid #dce4ef;border-radius:10px;padding:14px}
+[data-testid="stFileUploaderDropzone"]{background:#f5f8fd;border-radius:6px}
+[data-testid="stExpander"]{background:#fff;border:1px solid #dce4ef;border-radius:8px}
+[data-testid="stDataFrame"]{border:1px solid #dce4ef;border-radius:8px;overflow:hidden}
+[data-testid="stButton"] button,[data-testid="stDownloadButton"] button{border-radius:6px;min-height:2.6rem}
+[data-testid="stButton"] button:focus-visible,[data-testid="stDownloadButton"] button:focus-visible{outline:3px solid #79aaff;outline-offset:2px}
+[data-testid="stCaptionContainer"]{color:#60748a}
+[data-testid="stAlert"]{border-radius:7px}
+@media(max-width:760px){.block-container{padding:2rem 1rem}h1{font-size:1.5rem!important}}
+
+[data-testid="stAppDeployButton"]{display:none}

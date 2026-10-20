@@ -11,6 +11,10 @@ from splitter import split_vector
 
 
 st.set_page_config(page_title="按文件大小切分矢量数据", page_icon="🗺️", layout="wide")
+from pathlib import Path as _ThemePath
+_theme = _ThemePath(__file__).resolve().parent / "style.css"
+if _theme.is_file():
+    st.markdown("<style>" + _theme.read_text(encoding="utf-8") + "</style>", unsafe_allow_html=True)
 st.title("按文件大小切分矢量数据")
 st.caption("按完整要素切分，保留属性；大小以关闭后的实际文件为准。1 MB = 1024² 字节。")
 
@@ -92,7 +96,7 @@ else:
             if report["skipped_count"] or any(p["oversized"] for p in report["parts"]):
                 st.warning("存在跳过的几何或单要素超限，请查看日志和 manifest.json。")
             st.download_button("下载全部切分结果（ZIP）", data=saved["data"],
-                               file_name=saved["filename"], mime="application/zip", on_click="ignore")
+                               file_name=saved["filename"], mime="application/zip")
             with st.expander("输出文件列表与实际大小"):
                 st.dataframe(report["parts"], use_container_width=True, hide_index=True)
             with st.expander("处理日志"):

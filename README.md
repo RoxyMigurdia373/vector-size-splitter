@@ -156,3 +156,9 @@ with tempfile.TemporaryDirectory() as tmp:
     ]}
     pack_outputs(result["parts"], "example_split.zip", manifest)
 ```
+
+## 网页测试与桌面封装（2026-10-20）
+
+同步桌面版统一界面主题；原有分片、几何类型选择、属性保真和导出行为保持一致。
+
+本仓库是该工具的功能源码与网页测试入口。先在网页开发、测试和确认成熟，再同步到 gis-toolbox 打包；桌面仓库负责窗口、运行环境与发布。更新保留 Git 提交、备份标签与更新日志。
